@@ -2,7 +2,7 @@
 start = proc.time()
 library(doParallel)
 library(foreach)
-n.cores <- parallel::detectCores() - 5
+n.cores <- parallel::detectCores() - 5 #assign cores as per specs
 c1 <- parallel::makeCluster(
   n.cores,
   type = "FORK"
