@@ -1,3 +1,4 @@
+#map the gene names to entrez ids
 start = proc.time()
 library(doParallel)
 library(foreach)
@@ -42,6 +43,7 @@ doParallel::registerDoParallel(c1)
 # time_taken = end - start
 # stopCluster(c1)
 # write.csv(result, "synlegg_entrezid.csv", row.names = F, quote = F)
+#calculate the nodewise netprop
 #copy the above file generated to nikola
 #map svs to ppi
 # dusr_entrez = read.csv("dusr_entrezid.csv")
