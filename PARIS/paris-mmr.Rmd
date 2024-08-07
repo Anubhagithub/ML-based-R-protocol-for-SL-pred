@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ##generating pairwise comb for MMR genes and using this pairwise pairs as test data for slant
 ##loading the requisite libraries
 library(PARIS)
-inp = read.csv("/home/dell/Downloads/bknew/mmr-genes-supp3.csv")
+inp = read.csv("/home/user/ML-based-R-protocol-for-SL-pred/PARIS/mmr-genes-supp3.csv")
 inp = unique(inp)
 sample2 = as.vector(inp$mmr)
 cmbn = combn(unique(sample2),2)
@@ -29,7 +29,7 @@ cmbn6 = cmbn5[cmbn5$V1 != cmbn5$V2,]
 write.csv(cmbn6, "mmr-pairwise-comb.csv", quote = F, row.names = F)
 genelist1 = cmbn6[,c(1)]
 genelist2 = cmbn6[,c(2)]
-run_PARIS(imp.score = "raw", omic = "expression",  outdir = "/home/dell/Downloads/ddr-paris-anubha-edit/mmr3/",
+run_PARIS(imp.score = "raw", omic = "expression",  outdir = "/home/user/output/",
           genelist_dep = genelist1, genelist_feat = genelist2) 
 file = read.csv("/home/dell/Downloads/ddr-paris-anubha-edit/mmr2/PairsExp_ImpRfRaw.csv")
 print(head(file))
