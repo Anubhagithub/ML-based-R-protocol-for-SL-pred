@@ -1,0 +1,152 @@
+---
+title: "MMR-on-SLant"
+author: "Anubha"
+date: "2024-07-29"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+library(dplyr)
+library(caret)
+library(plyr)
+library(igraph)
+library(pROC)
+inp = read.csv("/home/dell/Downloads/bknew/mmr-entrez-gene-list.csv")
+inp = unique(inp)
+sample2 = as.vector(inp$id)
+cmbn = combn(unique(sample2),2) #cmbn function of base package is used for generating pairwise combination
+class(cmbn)
+cmbn2 = as.data.frame(cmbn)
+cmbn3 = t(cmbn2) 
+cmbn4 = as.data.frame(cmbn3) 
+cmbn5 = cmbn4[!duplicated(t(apply(cmbn4, 1, sort))),] #removing the duplicated entries
+cmbn6 = cmbn5[cmbn5$V1 != cmbn5$V2,]
+ppi = read.csv("/home/dell/Downloads/bknew/biogrid-entrez-pairs", sep = "\t", header = F)
+ppiuni = unique(ppi)
+ppiuni2 = ppiuni[!duplicated(t(apply(ppiuni, 1, sort))),]
+ppiuni3 <- ppiuni2[ppiuni2$V1 != ppiuni2$V2,] #104128
+anyNA(ppiuni3)
+Network2 <- graph_from_data_frame(ppiuni3 , directed=FALSE)
+abc = as.data.frame(degree(Network2))
+abc$names <- rownames(abc)
+abc$core = coreness(Network2)
+abc = abc[, -1]
+row.names(abc) = NULL
+f1 = cmbn6
+f2 = abc
+colnames(f1)[1] = "names"
+x1 <- join(f1, f2)
+f1.cp = f1
+colnames(f1.cp)[1] = "V1"
+colnames(f1.cp)[2] = "names"
+x2 <- join(f1.cp, f2)
+x3 = na.omit(cbind(x1,x2))
+##write.csv(x3, "mmr.nodewise.csv", row.names = F, quote = F)
+x4 = x3[,c(1,2,3,6)]
+x4$avgcore = (x4$core+x4$core.1)/2
+x5 = x4[,c(1,2,5)]
+inp4 = x5
+#str(inp4)
+###calculation of pairwise network property
+colnames(inp4)[1] = "gene1"
+colnames(inp4)[2] = "gene2"
+inp4$gene1 = as.factor(inp4$gene1)
+inp4$gene2 = as.factor(inp4$gene2)
+for (i in 1:length(inp4$gene1)){
+  V = inp4$gene1[i]
+  U = inp4$gene2[i]
+  inp4$shortest_path[i] <- distances(Network2, v = V, to = U)
+}
+print("shortest path done")
+print(Sys.time())
+#inp4 = inp4[, -18]
+inp4$cohesion = 0
+for (i in 1:length(inp4$gene1)){
+  if (inp4$shortest_path[i] > 1) {
+    V = inp4$gene1[i]
+    U = inp4$gene2[i]
+    #print(i)
+    inp4$cohesion[i] <- vertex.connectivity(Network2, source = V,target = U)
+  }
+}
+inp4[inp4$shortest_path<=1,]$cohesion=NA
+#inp4 = inp4[, -19]
+inp4 = na.omit(inp4)
+print("cohesion done")
+print(Sys.time())
+inp4$adhesion = 0
+for (i in 1:length(inp4$gene1)){
+  V = inp4$gene1[i]
+  U = inp4$gene2[i]
+  #print(i)
+  inp4$adhesion[i] <- edge.connectivity(Network2, source = V, target = U)
+}
+inp4 = na.omit(inp4)
+print("adhesion done")
+print(Sys.time())
+inp4cp1 = inp4
+inp4 = inp4cp1
+inp4$shortest_path = as.integer(inp4$shortest_path)
+print(dim(inp4))
+slantbal = read.csv("/home/dell/Downloads/bknew/slant-data.csv")
+table(slantbal$gi)
+traindatabal = slantbal
+table(traindatabal$gi)
+sample <- sample.int(n = nrow(traindatabal), size = floor(.70*nrow(traindatabal)), replace = F)
+train <- traindatabal[sample, ]
+test  <- traindatabal[-sample, ]
+slant.bal.train = train
+slant.bal.test = test
+control <- trainControl(method="cv", summaryFunction=twoClassSummary, classProbs=T,
+                        savePredictions = T)
+slant.bal <- train(gi~., data=select(slant.bal.train, -gene1, -gene2), method='ranger', trControl=control, tuneLength=5, metric="ROC", preProc=c("center", "scale"))
+#slant.bal.test = inp4[,-4]
+prediction = predict(slant.bal, newdata = slant.bal.test[,-c(1,2)])
+predict_gi = predict(slant.bal, newdata = slant.bal.test[,-c(1,2)])
+slant.bal.test$predict_gi = predict_gi
+#write.csv(slant.bal.test, "slant-predicts-mmr-pairs.csv", quote = F, row.names = F)
+cnf_mat = table(slant.bal.test$gi, slant.bal.test$predict_gi)
+cnf_mat
+accuracy.slant.bal = sum(diag(cnf_mat)/sum(cnf_mat))
+print(accuracy.slant.bal)
+##score for sl, and not
+pred <- predict(slant.bal,slant.bal.test,"prob")
+pred = as.data.frame(pred)
+database = slant.bal.test
+database = cbind(database,pred)
+database$max = pmax(database$NOT, database$SL)
+database = database[,c(1,2,7,10)]
+file = read.csv("/home/dell/Downloads/bknew/network-file-mmr-pairs-sorted-conf-score.csv")
+print(head(file))
+#print(head(database))
+#write.csv(database, "slant-predicts-slant-bal-data-score.csv", quote = F, row.names = F)
+##slant predicts mmr pairs with score
+##read the mmr predcited pairs which we predicted earlier
+# input = read.csv("/home/dell/Downloads/bknew/slant-predicts-mmr-pairs.csv")
+# pred <- predict(slant.bal,input,"prob")
+# pred = as.data.frame(pred)
+# database = input
+# database = cbind(database,pred)
+# database$max = pmax(database$NOT, database$SL)
+# database = database[,c(1,2,6,9)]
+#print(head(database))
+#write.csv(database, "slant-predicts-mmr-pairs-score.csv", quote = F, row.names = F)
+##ROC AUC curve
+te3 = slant.bal.test[,-c(1,2,7)]
+prediction.slant = predict(slant.bal, newdata = te3[,-c(4)])
+te3$gi = as.factor(te3$gi)
+result.slant = pROC::multiclass.roc(as.numeric(prediction.slant),
+                                        as.numeric(te3$gi))
+## Setting direction: controls &lt; cases
+#tiff(&quot;slant-acc.tiff&quot;,width = 1600, height = 1400, res = 300)
+#par(mar=c(0.5,2.5,0.5,0.5),cex.axis=1, font.axis=1,cex.lab=1.1,font.lab=1.5)
+plot.roc(result.slant$rocs[[1]],
+         print.auc=T, col = "#980043", lwd = 3,
+         legacy.axes = T, cex.lab = 2, cex.axis =2, plot = T, asp = NA)
+```
+
+
